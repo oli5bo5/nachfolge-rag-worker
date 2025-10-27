@@ -1,99 +1,193 @@
 /**
- * LLM Chat Application Template
- *
- * A simple chat application using Cloudflare Workers AI.
- * This template demonstrates how to implement an LLM-powered chat interface with
- * streaming responses using Server-Sent Events (SSE).
- *
+ * Frage-für-Frage Chatbot für Nachfolge-Beratung
+ * 
+ * Ein strukturierter Chatbot, der Nutzer schrittweise durch ein Beratungsgespräch führt.
+ * Nutzt Cloudflare Workers AI für intelligente, kontextbezogene Antworten auf Deutsch.
+ * 
  * @license MIT
  */
 import { Env, ChatMessage } from "./types";
 
-// Model ID for Workers AI model
-// https://developers.cloudflare.com/workers-ai/models/
+// Model ID für Workers AI
 const MODEL_ID = "@cf/meta/llama-3.3-70b-instruct-fp8-fast";
 
-// Default system prompt
-const SYSTEM_PROMPT =
-  "You are a helpful, friendly assistant. Provide concise and accurate responses.";
+// Strukturierter Fragenkatalog für die Nachfolge-Beratung
+const QUESTIONS = [
+  "Willkommen! Ich bin Ihr Berater für Unternehmensnachfolge. Wie heißen Sie?",
+  "Schön, Sie kennenzulernen! Welche Art von Unternehmen führen Sie?",
+  "Wie viele Mitarbeiter beschäftigt Ihr Unternehmen aktuell?",
+  "In welcher Branche ist Ihr Unternehmen tätig?",
+  "Seit wann besteht Ihr Unternehmen?",
+  "Was ist Ihr Hauptgrund für die Überlegung zur Nachfolgeplanung?",
+  "Haben Sie bereits potenzielle Nachfolger im Blick (Familie, Mitarbeiter, externe Käufer)?",
+  "Welcher Zeitrahmen schwebt Ihnen für die Übergabe vor?",
+  "Was sind Ihre wichtigsten Ziele für die Nachfolge (finanzielle Absicherung, Fortbestand des Unternehmens, etc.)?",
+  "Vielen Dank für Ihre Antworten! Möchten Sie noch etwas hinzufügen oder haben Sie Fragen?"
+];
+
+// System-Prompt für den AI-Assistenten
+const SYSTEM_PROMPT = `Du bist ein professioneller Berater für Unternehmensnachfolge in Deutschland. 
+Deine Aufgabe ist es, Nutzer durch ein strukturiertes Beratungsgespräch zu führen.
+
+Wichtige Regeln:
+1. Antworte IMMER auf Deutsch
+2. Sei freundlich, professionell und einfühlsam
+3. Gehe auf die Antworten des Nutzers ein und zeige Verständnis
+4. Halte deine Antworten prägnant (2-3 Sätze)
+5. Bestätige die Antwort des Nutzers kurz, bevor du die nächste Frage stellst
+6. Bei der letzten Frage: Fasse die wichtigsten Punkte zusammen und biete weitere Unterstützung an
+
+Format deiner Antworten:
+- Kurze Bestätigung/Kommentar zur Nutzerantwort
+- Die nächste Frage aus dem Fragenkatalog
+
+Beispiel: "Vielen Dank für diese Information. Das klingt nach einem etablierten Unternehmen. [Nächste Frage]"`;
 
 export default {
-  /**
-   * Main request handler for the Worker
-   */
   async fetch(
     request: Request,
     env: Env,
     ctx: ExecutionContext,
   ): Promise<Response> {
     const url = new URL(request.url);
+    
+    // Handle CORS preflight
+    if (request.method === "OPTIONS") {
+      return new Response(null, {
+        headers: {
+          "Access-Control-Allow-Origin": "*",
+          "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+          "Access-Control-Allow-Headers": "Content-Type",
+        },
+      });
+    }
 
-    // Handle static assets (frontend)
+    // Statische Assets (Frontend)
     if (url.pathname === "/" || !url.pathname.startsWith("/api/")) {
       return env.ASSETS.fetch(request);
     }
 
     // API Routes
     if (url.pathname === "/api/chat") {
-      // Handle POST requests for chat
       if (request.method === "POST") {
         return handleChatRequest(request, env);
       }
-
-      // Method not allowed for other request types
       return new Response("Method not allowed", { status: 405 });
     }
 
-    // Handle 404 for unmatched routes
+    if (url.pathname === "/api/questions") {
+      return new Response(JSON.stringify({ questions: QUESTIONS }), {
+        headers: { 
+          "Content-Type": "application/json",
+          "Access-Control-Allow-Origin": "*" 
+        },
+      });
+    }
+
     return new Response("Not found", { status: 404 });
   },
 } satisfies ExportedHandler<Env>;
 
 /**
- * Handles chat API requests
+ * Verarbeitet Chat-Anfragen mit strukturiertem Frage-Antwort-Format
  */
 async function handleChatRequest(
   request: Request,
   env: Env,
 ): Promise<Response> {
   try {
-    // Parse JSON request body
-    const { messages = [] } = (await request.json()) as {
+    const { messages = [], currentQuestionIndex = 0 } = (await request.json()) as {
       messages: ChatMessage[];
+      currentQuestionIndex: number;
     };
 
-    // Add system prompt if not present
-    if (!messages.some((msg) => msg.role === "system")) {
-      messages.unshift({ role: "system", content: SYSTEM_PROMPT });
+    // Bestimme die aktuelle Frage
+    const currentQuestion = QUESTIONS[currentQuestionIndex] || QUESTIONS[QUESTIONS.length - 1];
+    
+    // Baue den Kontext für den AI-Assistenten auf
+    const aiMessages: ChatMessage[] = [
+      { role: "system", content: SYSTEM_PROMPT },
+      { role: "system", content: `Aktuelle Frage (${currentQuestionIndex + 1}/${QUESTIONS.length}): ${currentQuestion}` },
+      ...messages,
+    ];
+
+    // Wenn es die erste Nachricht ist, sende nur die erste Frage
+    if (messages.length === 0) {
+      return new Response(
+        JSON.stringify({ 
+          response: QUESTIONS[0],
+          questionIndex: 0,
+          totalQuestions: QUESTIONS.length 
+        }),
+        {
+          headers: { 
+            "Content-Type": "application/json",
+            "Access-Control-Allow-Origin": "*" 
+          },
+        }
+      );
     }
 
-    const response = await env.AI.run(
+    // Rufe Workers AI auf
+    const aiResponse = await env.AI.run(
       MODEL_ID,
       {
-        messages,
-        max_tokens: 1024,
-      },
-      {
-        returnRawResponse: true,
-        // Uncomment to use AI Gateway
-        // gateway: {
-        //   id: "YOUR_GATEWAY_ID", // Replace with your AI Gateway ID
-        //   skipCache: false,      // Set to true to bypass cache
-        //   cacheTtl: 3600,        // Cache time-to-live in seconds
-        // },
-      },
+        messages: aiMessages,
+        max_tokens: 512,
+        temperature: 0.7,
+      }
     );
 
-    // Return streaming response
-    return response;
-  } catch (error) {
-    console.error("Error processing chat request:", error);
+    let responseText = "";
+    
+    // Extrahiere die Antwort
+    if (typeof aiResponse === "object" && aiResponse !== null) {
+      if ("response" in aiResponse) {
+        responseText = String(aiResponse.response);
+      } else if ("result" in aiResponse && typeof aiResponse.result === "object") {
+        const result = aiResponse.result as any;
+        if ("response" in result) {
+          responseText = String(result.response);
+        }
+      }
+    } else if (typeof aiResponse === "string") {
+      responseText = aiResponse;
+    }
+
+    // Füge die nächste Frage hinzu, falls noch nicht am Ende
+    const nextQuestionIndex = currentQuestionIndex + 1;
+    if (nextQuestionIndex < QUESTIONS.length && !responseText.includes(QUESTIONS[nextQuestionIndex])) {
+      responseText += "\n\n" + QUESTIONS[nextQuestionIndex];
+    }
+
     return new Response(
-      JSON.stringify({ error: "Failed to process request" }),
+      JSON.stringify({ 
+        response: responseText,
+        questionIndex: nextQuestionIndex,
+        totalQuestions: QUESTIONS.length,
+        isComplete: nextQuestionIndex >= QUESTIONS.length
+      }),
+      {
+        headers: { 
+          "Content-Type": "application/json",
+          "Access-Control-Allow-Origin": "*" 
+        },
+      }
+    );
+
+  } catch (error) {
+    console.error("Fehler bei der Verarbeitung der Chat-Anfrage:", error);
+    return new Response(
+      JSON.stringify({ 
+        error: "Entschuldigung, es gab einen Fehler bei der Verarbeitung Ihrer Anfrage. Bitte versuchen Sie es erneut." 
+      }),
       {
         status: 500,
-        headers: { "content-type": "application/json" },
-      },
+        headers: { 
+          "Content-Type": "application/json",
+          "Access-Control-Allow-Origin": "*" 
+        },
+      }
     );
   }
 }
