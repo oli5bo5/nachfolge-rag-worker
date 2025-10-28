@@ -1,9 +1,9 @@
-<!doctype html>
-<html lang="en">
+<!DOCTYPE html>
+<html lang="de">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>LLM Chat App</title>
+    <title>Nachfolge-Berater Chat</title>
     <style>
       :root {
         --primary-color: #f6821f;
@@ -43,6 +43,11 @@
       h1 {
         font-size: 1.5rem;
         color: var(--primary-color);
+      }
+
+      p {
+        font-size: 0.9rem;
+        color: var(--text-light);
       }
 
       .chat-container {
@@ -138,39 +143,33 @@
   </head>
   <body>
     <header>
-      <h1>Cloudflare AI Chat</h1>
+      <h1>Nachfolge-Berater</h1>
       <p>Powered by Cloudflare Workers AI</p>
     </header>
-
     <div class="chat-container">
-      <div id="chat-messages" class="chat-messages">
+      <div class="chat-messages" id="chat-messages">
         <div class="message assistant-message">
           <p>
-            Hello! I'm an LLM chat app powered by Cloudflare Workers AI. How can
-            I help you today?
+            Guten Tag und herzlich willkommen! Ich bin Ihr Berater rund um das Thema Unternehmensnachfolge. Gemeinsam finden wir die beste Lösung für Ihren individuellen Nachfolge-Prozess. Worüber möchten Sie zuerst sprechen?
           </p>
         </div>
       </div>
-
       <div class="typing-indicator" id="typing-indicator">
         AI is thinking...
       </div>
-
       <div class="message-input">
         <textarea
           id="user-input"
-          placeholder="Type your message here..."
+          placeholder="Schreiben Sie Ihre Nachricht hier..."
           rows="1"
           autofocus
         ></textarea>
-        <button id="send-button">Send</button>
+        <button id="send-button">Senden</button>
       </div>
     </div>
-
     <footer>
-      <p>Cloudflare Workers AI Chat Template &copy; 2025</p>
+      Nachfolge-Berater Chat © 2025
     </footer>
-
     <!-- Chat app script -->
     <script src="chat.js"></script>
   </body>
