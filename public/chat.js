@@ -15,9 +15,10 @@ let chatHistory = [
   {
     role: "assistant",
     content:
-      "Hello! I'm an LLM chat app powered by Cloudflare Workers AI. How can I help you today?",
+      "Guten Tag und herzlich willkommen! Ich bin Ihr Berater rund um das Thema Unternehmensnachfolge. Gemeinsam finden wir die beste Lösung für Ihren individuellen Nachfolge-Prozess. Worüber möchten Sie zuerst sprechen?",
   },
 ];
+
 let isProcessing = false;
 
 // Auto-resize textarea as user types
@@ -97,7 +98,6 @@ async function sendMessage() {
 
     while (true) {
       const { done, value } = await reader.read();
-
       if (done) {
         break;
       }
