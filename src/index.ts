@@ -9,7 +9,7 @@
 import { Env, ChatMessage } from "./types";
 
 // Model ID für Workers AI
-const MODEL_ID = "@cf/meta/llama-3.3-70b-instruct-fp8-fast";
+const MODEL_ID = "@cf/mistral/mistral-8x22b-instruct";
 
 // Strukturierter Fragenkatalog für die Nachfolge-Beratung
 const QUESTIONS = [
