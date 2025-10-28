@@ -13,99 +13,38 @@ This template demonstrates how to build an AI-powered chat interface using Cloud
 - Real-time streaming of AI responses using Server-Sent Events (SSE)
 - Easy customization of models and system prompts
 - Support for AI Gateway integration
-- Clean, responsive UI that works on mobile and desktop
-
-## Features
-
-- 💬 Simple and responsive chat interface
-- ⚡ Server-Sent Events (SSE) for streaming responses
-- 🧠 Powered by Cloudflare Workers AI LLMs
-- 🛠️ Built with TypeScript and Cloudflare Workers
-- 📱 Mobile-friendly design
-- 🔄 Maintains chat history on the client
-- 🔎 Built-in Observability logging
-<!-- dash-content-end -->
 
 ## Getting Started
 
 ### Prerequisites
 
-- [Node.js](https://nodejs.org/) (v18 or newer)
-- [Wrangler CLI](https://developers.cloudflare.com/workers/wrangler/install-and-update/)
-- A Cloudflare account with Workers AI access
+- A Cloudflare account
+- [Wrangler CLI](https://developers.cloudflare.com/workers/wrangler/install-and-update/) installed
 
-### Installation
+### Setup
 
-1. Clone this repository:
-
-   ```bash
-   git clone https://github.com/cloudflare/templates.git
-   cd templates/llm-chat-app
-   ```
-
+1. Clone this repository
 2. Install dependencies:
-
    ```bash
    npm install
    ```
-
-3. Generate Worker type definitions:
+3. Deploy to Cloudflare Workers:
    ```bash
-   npm run cf-typegen
+   npm run deploy
    ```
 
-### Development
+That's it! Your chat application will be live on your workers.dev subdomain.
 
-Start a local development server:
+## Architecture
 
-```bash
-npm run dev
-```
-
-This will start a local server at http://localhost:8787.
-
-Note: Using Workers AI accesses your Cloudflare account even during local development, which will incur usage charges.
-
-### Deployment
-
-Deploy to Cloudflare Workers:
-
-```bash
-npm run deploy
-```
-
-### Monitor
-
-View real-time logs associated with any deployed Worker:
-
-```bash
-npm wrangler tail
-```
-
-## Project Structure
-
-```
-/
-├── public/             # Static assets
-│   ├── index.html      # Chat UI HTML
-│   └── chat.js         # Chat UI frontend script
-├── src/
-│   ├── index.ts        # Main Worker entry point
-│   └── types.ts        # TypeScript type definitions
-├── test/               # Test files
-├── wrangler.jsonc      # Cloudflare Worker configuration
-├── tsconfig.json       # TypeScript configuration
-└── README.md           # This documentation
-```
-
-## How It Works
+This template consists of three main components:
 
 ### Backend
 
-The backend is built with Cloudflare Workers and uses the Workers AI platform to generate responses. The main components are:
+The backend is a Cloudflare Worker (in `src/index.ts`) that:
 
-1. **API Endpoint** (`/api/chat`): Accepts POST requests with chat messages and streams responses
-2. **Streaming**: Uses Server-Sent Events (SSE) for real-time streaming of AI responses
+1. **Handles Chat Requests**: Receives chat messages via POST to `/api/chat`
+2. **Streams AI Responses**: Uses Server-Sent Events (SSE) to stream responses from Workers AI in real-time
 3. **Workers AI Binding**: Connects to Cloudflare's AI service via the Workers AI binding
 
 ### Frontend
@@ -151,3 +90,5 @@ The UI styling is contained in the `<style>` section of `public/index.html`. You
 - [Cloudflare Workers Documentation](https://developers.cloudflare.com/workers/)
 - [Cloudflare Workers AI Documentation](https://developers.cloudflare.com/workers-ai/)
 - [Workers AI Models](https://developers.cloudflare.com/workers-ai/models/)
+
+<!-- Updated: 2025-10-28 -->
