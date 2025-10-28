@@ -39,4 +39,87 @@ Wichtige Regeln:
 6. Nutze gelegentlich anschauliche, kurze Praxisbeispiele ohne abzuschweifen.
 `;
 
-// ... restlicher Code unverändert ...
+/**
+ * Haupthandler für Chat-Anfragen
+ */
+async function handleChatRequest(
+  request: Request,
+  env: Env
+): Promise<Response> {
+  try {
+    const { messages } = (await request.json()) as {
+      messages: ChatMessage[];
+    };
+
+    // Finde die aktuelle Fragenummer basierend auf dem Chat-Verlauf
+    const questionIndex = Math.min(
+      messages.filter((m) => m.role === "user").length,
+      QUESTIONS.length - 1
+    );
+    const currentQuestion = QUESTIONS[questionIndex];
+
+    // Bereite Nachrichten für das AI-Modell vor
+    const aiMessages = [
+      { role: "system", content: SYSTEM_PROMPT },
+      ...messages,
+      {
+        role: "system",
+        content: `Die nächste Frage lautet: "${currentQuestion}". Beantworte die letzte Nachricht des Nutzers empathisch und stelle dann die nächste Frage.`,
+      },
+    ];
+
+    // Rufe Workers AI auf
+    const response = await env.AI.run(MODEL_ID, {
+      messages: aiMessages,
+      stream: false,
+    });
+
+    return new Response(JSON.stringify(response), {
+      headers: {
+        "Content-Type": "application/json",
+        "Access-Control-Allow-Origin": "*",
+      },
+    });
+  } catch (error) {
+    console.error("Chat request error:", error);
+    return new Response(
+      JSON.stringify({ error: "Chat request failed", details: String(error) }),
+      {
+        status: 500,
+        headers: {
+          "Content-Type": "application/json",
+          "Access-Control-Allow-Origin": "*",
+        },
+      }
+    );
+  }
+}
+
+/**
+ * Worker Entry Point
+ */
+export default {
+  async fetch(request: Request, env: Env): Promise<Response> {
+    const url = new URL(request.url);
+
+    // Handle CORS preflight requests
+    if (request.method === "OPTIONS") {
+      return new Response(null, {
+        headers: {
+          "Access-Control-Allow-Origin": "*",
+          "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+          "Access-Control-Allow-Headers": "Content-Type",
+        },
+      });
+    }
+
+    // API Endpoint: /api/chat
+    if (url.pathname === "/api/chat" && request.method === "POST") {
+      return handleChatRequest(request, env);
+    }
+
+    // Serve static files from /public
+    const assetResponse = await env.ASSETS.fetch(request);
+    return assetResponse;
+  },
+};
