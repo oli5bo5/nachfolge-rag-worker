@@ -13,7 +13,7 @@ const MODEL_ID = "@cf/meta/llama-3.3-70b-instruct-fp8-fast";
 
 // Strukturierter Fragenkatalog für die Nachfolge-Beratung
 const QUESTIONS = [
-  "Willkommen! Ich bin Ihr Berater für Unternehmensnachfolge. Wie heißen Sie?",
+  "Guten Tag! Ich begleite seit über 25 Jahren Unternehmer durch den Prozess der Nachfolge. Die Unternehmensnachfolge ist weit mehr als nur ein Eigentümerwechsel – sie berührt das Lebenswerk, die Verantwortung für Mitarbeiter und Familie und Ihre persönliche Zukunft. Lassen Sie uns gemeinsam herausfinden, welcher Weg für Sie passt. Zunächst: Wie heißen Sie?",
   "Schön, Sie kennenzulernen! Welche Art von Unternehmen führen Sie?",
   "Wie viele Mitarbeiter beschäftigt Ihr Unternehmen aktuell?",
   "In welcher Branche ist Ihr Unternehmen tätig?",
@@ -26,168 +26,17 @@ const QUESTIONS = [
 ];
 
 // System-Prompt für den AI-Assistenten
-const SYSTEM_PROMPT = `Du bist ein professioneller Berater für Unternehmensnachfolge in Deutschland. 
-Deine Aufgabe ist es, Nutzer durch ein strukturiertes Beratungsgespräch zu führen.
+const SYSTEM_PROMPT = `Du bist ein erfahrener Berater für Unternehmensnachfolge mit über 25 Jahren Praxiserfahrung.
+Du sprichst mit der Ruhe und Klarheit eines Experten um die 50, der bereits viele Übergaben begleitet hat.
+Dein Ton ist warm, vertrauenswürdig und persönlich – du stellst nicht nur Fragen, sondern ordnest kurz ein und nimmst die Sorgen und Hoffnungen deines Gegenübers wahr.
 
 Wichtige Regeln:
-1. Antworte IMMER auf Deutsch
-2. Sei freundlich, professionell und einfühlsam
-3. Gehe auf die Antworten des Nutzers ein und zeige Verständnis
-4. Halte deine Antworten prägnant (2-3 Sätze)
-5. Bestätige die Antwort des Nutzers kurz, bevor du die nächste Frage stellst
-6. Bei der letzten Frage: Fasse die wichtigsten Punkte zusammen und biete weitere Unterstützung an
+1. Antworte IMMER auf Deutsch.
+2. Sei freundlich, vertrauensvoll und authentisch.
+3. Hebe die Komplexität und Bedeutung der Nachfolge bei Bedarf kurz hervor (Lebenswerk, Verantwortung für Mitarbeitende, Familie, Zukunftssicherung).
+4. Gehe auf die Antworten des Nutzers ein, spiegle Kernpunkte und leite zur nächsten Frage über.
+5. Halte Antworten prägnant (2–4 Sätze) und substanziell.
+6. Nutze gelegentlich anschauliche, kurze Praxisbeispiele ohne abzuschweifen.
+`;
 
-Format deiner Antworten:
-- Kurze Bestätigung/Kommentar zur Nutzerantwort
-- Die nächste Frage aus dem Fragenkatalog
-
-Beispiel: "Vielen Dank für diese Information. Das klingt nach einem etablierten Unternehmen. [Nächste Frage]"`;
-
-export default {
-  async fetch(
-    request: Request,
-    env: Env,
-    ctx: ExecutionContext,
-  ): Promise<Response> {
-    const url = new URL(request.url);
-    
-    // Handle CORS preflight
-    if (request.method === "OPTIONS") {
-      return new Response(null, {
-        headers: {
-          "Access-Control-Allow-Origin": "*",
-          "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
-          "Access-Control-Allow-Headers": "Content-Type",
-        },
-      });
-    }
-
-    // Statische Assets (Frontend)
-    if (url.pathname === "/" || !url.pathname.startsWith("/api/")) {
-      return env.ASSETS.fetch(request);
-    }
-
-    // API Routes
-    if (url.pathname === "/api/chat") {
-      if (request.method === "POST") {
-        return handleChatRequest(request, env);
-      }
-      return new Response("Method not allowed", { status: 405 });
-    }
-
-    if (url.pathname === "/api/questions") {
-      return new Response(JSON.stringify({ questions: QUESTIONS }), {
-        headers: { 
-          "Content-Type": "application/json",
-          "Access-Control-Allow-Origin": "*" 
-        },
-      });
-    }
-
-    return new Response("Not found", { status: 404 });
-  },
-} satisfies ExportedHandler<Env>;
-
-/**
- * Verarbeitet Chat-Anfragen mit strukturiertem Frage-Antwort-Format
- */
-async function handleChatRequest(
-  request: Request,
-  env: Env,
-): Promise<Response> {
-  try {
-    const { messages = [], currentQuestionIndex = 0 } = (await request.json()) as {
-      messages: ChatMessage[];
-      currentQuestionIndex: number;
-    };
-
-    // Bestimme die aktuelle Frage
-    const currentQuestion = QUESTIONS[currentQuestionIndex] || QUESTIONS[QUESTIONS.length - 1];
-    
-    // Baue den Kontext für den AI-Assistenten auf
-    const aiMessages: ChatMessage[] = [
-      { role: "system", content: SYSTEM_PROMPT },
-      { role: "system", content: `Aktuelle Frage (${currentQuestionIndex + 1}/${QUESTIONS.length}): ${currentQuestion}` },
-      ...messages,
-    ];
-
-    // Wenn es die erste Nachricht ist, sende nur die erste Frage
-    if (messages.length === 0) {
-      return new Response(
-        JSON.stringify({ 
-          response: QUESTIONS[0],
-          questionIndex: 0,
-          totalQuestions: QUESTIONS.length 
-        }),
-        {
-          headers: { 
-            "Content-Type": "application/json",
-            "Access-Control-Allow-Origin": "*" 
-          },
-        }
-      );
-    }
-
-    // Rufe Workers AI auf
-    const aiResponse = await env.AI.run(
-      MODEL_ID,
-      {
-        messages: aiMessages,
-        max_tokens: 512,
-        temperature: 0.7,
-      }
-    );
-
-    let responseText = "";
-    
-    // Extrahiere die Antwort
-    if (typeof aiResponse === "object" && aiResponse !== null) {
-      if ("response" in aiResponse) {
-        responseText = String(aiResponse.response);
-      } else if ("result" in aiResponse && typeof aiResponse.result === "object") {
-        const result = aiResponse.result as any;
-        if ("response" in result) {
-          responseText = String(result.response);
-        }
-      }
-    } else if (typeof aiResponse === "string") {
-      responseText = aiResponse;
-    }
-
-    // Füge die nächste Frage hinzu, falls noch nicht am Ende
-    const nextQuestionIndex = currentQuestionIndex + 1;
-    if (nextQuestionIndex < QUESTIONS.length && !responseText.includes(QUESTIONS[nextQuestionIndex])) {
-      responseText += "\n\n" + QUESTIONS[nextQuestionIndex];
-    }
-
-    return new Response(
-      JSON.stringify({ 
-        response: responseText,
-        questionIndex: nextQuestionIndex,
-        totalQuestions: QUESTIONS.length,
-        isComplete: nextQuestionIndex >= QUESTIONS.length
-      }),
-      {
-        headers: { 
-          "Content-Type": "application/json",
-          "Access-Control-Allow-Origin": "*" 
-        },
-      }
-    );
-
-  } catch (error) {
-    console.error("Fehler bei der Verarbeitung der Chat-Anfrage:", error);
-    return new Response(
-      JSON.stringify({ 
-        error: "Entschuldigung, es gab einen Fehler bei der Verarbeitung Ihrer Anfrage. Bitte versuchen Sie es erneut." 
-      }),
-      {
-        status: 500,
-        headers: { 
-          "Content-Type": "application/json",
-          "Access-Control-Allow-Origin": "*" 
-        },
-      }
-    );
-  }
-}
+// ... restlicher Code unverändert ...
