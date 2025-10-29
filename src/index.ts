@@ -22,7 +22,7 @@ const QUESTIONS = [
   "Haben Sie bereits potenzielle Nachfolger im Blick (Familie, Mitarbeiter, externe Käufer)?",
   "Welcher Zeitrahmen schwebt Ihnen für die Übergabe vor?",
   "Was sind Ihre wichtigsten Ziele für die Nachfolge (finanzielle Absicherung, Fortbestand des Unternehmens, etc.)?",
-  "Vielen Dank für Ihre Antworten! Möchten Sie noch etwas hinzufügen oder haben Sie Fragen?"
+  "Vielen Dank für Ihre Antworten! Möchten Sie noch etwas hinzufügen oder haben Sie Fragen?",
 ];
 
 // System-Prompt für den AI-Assistenten
@@ -37,7 +37,7 @@ Wichtige Regeln:
 4. Gehe auf die Antworten des Nutzers ein, spiegle Kernpunkte und leite zur nächsten Frage über.
 5. Halte Antworten prägnant (2–4 Sätze) und substanziell.
 6. Nutze gelegentlich anschauliche, kurze Praxisbeispiele ohne abzuschweifen.
-`;
+7. WICHTIG: Stelle dich NICHT erneut vor, nachdem die Willkommensnachricht bereits gesendet wurde. Verzichte auf Aussagen wie "Ich begleite Unternehmer seit..." oder ähnliche Selbstvorstellungen in Folgeantworten. Bleibe direkt und kontextbezogen.`;
 
 /**
  * Haupthandler für Chat-Anfragen
@@ -47,28 +47,39 @@ async function handleChatRequest(
   env: Env
 ): Promise<Response> {
   try {
-    const { messages } = (await request.json()) as {
-      messages: ChatMessage[];
-    };
+    const { history = [], userMessage }: { history: ChatMessage[]; userMessage: string } =
+      await request.json();
 
-    // Finde die aktuelle Fragenummer basierend auf dem Chat-Verlauf
-    const questionIndex = Math.min(
-      messages.filter((m) => m.role === "user").length,
-      QUESTIONS.length - 1
-    );
+    console.log("📥 Eingehende Anfrage:", { historyLength: history.length, userMessage });
+
+    const questionIndex = Math.floor(history.length / 2);
     const currentQuestion = QUESTIONS[questionIndex];
 
-    // Bereite Nachrichten für das AI-Modell vor
+    console.log("🔍 Frage-Index:", questionIndex, "von", QUESTIONS.length);
+
+    // Falls alle Fragen beantwortet wurden, sende eine Abschlussnachricht
+    if (questionIndex >= QUESTIONS.length) {
+      return new Response(
+        JSON.stringify({ response: "Vielen Dank für das Gespräch! Ich werde mich bald bei Ihnen melden." }),
+        { headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" } }
+      );
+    }
+
     const aiMessages = [
       { role: "system", content: SYSTEM_PROMPT },
-      ...messages,
+      ...history.map((msg) => ({
+        role: msg.sender === "bot" ? "assistant" : "user",
+        content: msg.content,
+      })),
+      { role: "user", content: userMessage },
       {
         role: "system",
-        content: `Die nächste Frage lautet: "${currentQuestion}". Beantworte die letzte Nachricht des Nutzers empathisch und stelle dann die nächste Frage.`,
+        content: `Die nächste Frage lautet: "${currentQuestion}". Gehe kurz und persönlich auf die Antwort des Nutzers ein und stelle dann die nächste Frage. Vermeide jede Form von Selbstvorstellung oder Wiederholung deiner Erfahrung.`,
       },
     ];
 
-    // Rufe Workers AI auf mit Streaming aktiviert
+    console.log("🤖 AI Messages:", aiMessages);
+
     const response = await env.AI.run(MODEL_ID, {
       messages: aiMessages,
       stream: true,
