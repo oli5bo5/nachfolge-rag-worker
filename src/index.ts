@@ -47,12 +47,27 @@ async function handleChatRequest(
   env: Env
 ): Promise<Response> {
   try {
-    const { history = [], userMessage }: { history: ChatMessage[]; userMessage: string } =
-      await request.json();
+    const body = await request.json();
+    const { messages }: { messages: ChatMessage[] } = body;
+    
+    if (!messages || !Array.isArray(messages)) {
+      return new Response(
+        JSON.stringify({ error: "Invalid request: messages array required" }),
+        { 
+          status: 400,
+          headers: { 
+            "Content-Type": "application/json", 
+            "Access-Control-Allow-Origin": "*" 
+          } 
+        }
+      );
+    }
 
-    console.log("📥 Eingehende Anfrage:", { historyLength: history.length, userMessage });
+    console.log("📥 Eingehende Anfrage:", { messageCount: messages.length });
 
-    const questionIndex = Math.floor(history.length / 2);
+    // Finde die letzte Benutzernachricht
+    const userMessages = messages.filter(m => m.sender === "user");
+    const questionIndex = userMessages.length;
     const currentQuestion = QUESTIONS[questionIndex];
 
     console.log("🔍 Frage-Index:", questionIndex, "von", QUESTIONS.length);
@@ -65,13 +80,13 @@ async function handleChatRequest(
       );
     }
 
+    // Baue das messages-Array für die AI
     const aiMessages = [
       { role: "system", content: SYSTEM_PROMPT },
-      ...history.map((msg) => ({
+      ...messages.map((msg) => ({
         role: msg.sender === "bot" ? "assistant" : "user",
         content: msg.content,
       })),
-      { role: "user", content: userMessage },
       {
         role: "system",
         content: `Die nächste Frage lautet: "${currentQuestion}". Gehe kurz und persönlich auf die Antwort des Nutzers ein und stelle dann die nächste Frage. Vermeide jede Form von Selbstvorstellung oder Wiederholung deiner Erfahrung.`,
@@ -80,19 +95,37 @@ async function handleChatRequest(
 
     console.log("🤖 AI Messages:", aiMessages);
 
+    // Deaktiviere Streaming für bessere Kompatibilität
     const response = await env.AI.run(MODEL_ID, {
       messages: aiMessages,
-      stream: true,
     });
 
-    return new Response(response, {
-      headers: {
-        "Content-Type": "text/event-stream",
-        "Access-Control-Allow-Origin": "*",
-        "Cache-Control": "no-cache",
-        "Connection": "keep-alive",
-      },
-    });
+    console.log("✅ AI Response:", response);
+
+    // Extrahiere die Antwort aus der Response
+    let botResponse = "";
+    if (typeof response === "string") {
+      botResponse = response;
+    } else if (response && typeof response === "object") {
+      // Cloudflare AI kann verschiedene Formate zurückgeben
+      if ("response" in response) {
+        botResponse = response.response;
+      } else if ("text" in response) {
+        botResponse = response.text;
+      } else if ("result" in response) {
+        botResponse = response.result?.response || response.result;
+      }
+    }
+
+    return new Response(
+      JSON.stringify({ response: botResponse || "Entschuldigung, ich konnte keine Antwort generieren." }),
+      {
+        headers: {
+          "Content-Type": "application/json",
+          "Access-Control-Allow-Origin": "*",
+        },
+      }
+    );
   } catch (error) {
     console.error("Chat request error:", error);
     return new Response(
