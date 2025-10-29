@@ -68,16 +68,18 @@ async function handleChatRequest(
       },
     ];
 
-    // Rufe Workers AI auf
+    // Rufe Workers AI auf mit Streaming aktiviert
     const response = await env.AI.run(MODEL_ID, {
       messages: aiMessages,
-      stream: false,
+      stream: true,
     });
 
-    return new Response(JSON.stringify(response), {
+    return new Response(response, {
       headers: {
-        "Content-Type": "application/json",
+        "Content-Type": "text/event-stream",
         "Access-Control-Allow-Origin": "*",
+        "Cache-Control": "no-cache",
+        "Connection": "keep-alive",
       },
     });
   } catch (error) {
