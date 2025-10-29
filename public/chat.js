@@ -18,7 +18,6 @@ let chatHistory = [
       "Guten Tag und herzlich willkommen! Ich bin Ihr Berater rund um das Thema Unternehmensnachfolge. Gemeinsam finden wir die beste Lösung für Ihren individuellen Nachfolge-Prozess. Worüber möchten Sie zuerst sprechen?",
   },
 ];
-
 let isProcessing = false;
 
 // Auto-resize textarea as user types
