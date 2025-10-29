@@ -3,11 +3,13 @@
  *
  * Handles the chat UI interactions and communication with the backend API.
  */
+
 // DOM elements
 const chatMessages = document.getElementById("chat-messages");
 const userInput = document.getElementById("user-input");
 const sendButton = document.getElementById("send-button");
 const typingIndicator = document.getElementById("typing-indicator");
+
 // Chat state
 let chatHistory = [
   {
@@ -17,11 +19,13 @@ let chatHistory = [
   },
 ];
 let isProcessing = false;
+
 // Auto-resize textarea as user types
 userInput.addEventListener("input", function () {
   this.style.height = "auto";
   this.style.height = this.scrollHeight + "px";
 });
+
 // Send message on Enter (without Shift)
 userInput.addEventListener("keydown", function (e) {
   if (e.key === "Enter" && !e.shiftKey) {
@@ -29,67 +33,76 @@ userInput.addEventListener("keydown", function (e) {
     sendMessage();
   }
 });
+
 // Send button click handler
 sendButton.addEventListener("click", sendMessage);
+
 /**
  * Sends a message to the chat API and processes the response
  */
 async function sendMessage() {
   const message = userInput.value.trim();
+
   // Don't send empty messages
   if (message === "" || isProcessing) return;
+
   // Disable input while processing
   isProcessing = true;
   userInput.disabled = true;
   sendButton.disabled = true;
+
   // Add user message to chat
   addMessageToChat("user", message);
+
   // Clear input
   userInput.value = "";
   userInput.style.height = "auto";
+
+  // Add user message to history
+  chatHistory.push({ role: "user", content: message });
+
   // Show typing indicator
   typingIndicator.classList.add("visible");
-  // Add message to history
-  chatHistory.push({ role: "user", content: message });
+
   try {
-    // Create new assistant response element
+    // Create empty assistant message for streaming
     const assistantMessageEl = document.createElement("div");
     assistantMessageEl.className = "message assistant-message";
     assistantMessageEl.innerHTML = "<p></p>";
     chatMessages.appendChild(assistantMessageEl);
-    // Scroll to bottom
-    chatMessages.scrollTop = chatMessages.scrollHeight;
-    // Send request to API
+
+    let responseText = "";
+    let buffer = "";
+
+    // Make streaming request
     const response = await fetch("/api/chat", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
       },
-      body: JSON.stringify({
-        messages: chatHistory,
-      }),
+      body: JSON.stringify({ messages: chatHistory }),
     });
-    // Handle errors
+
     if (!response.ok) {
-      throw new Error("Failed to get response");
+      throw new Error(`HTTP error! status: ${response.status}`);
     }
-    // Process streaming response
+
     const reader = response.body.getReader();
     const decoder = new TextDecoder();
-    let responseText = "";
-    let buffer = "";
+
+    // Read stream
     while (true) {
       const { done, value } = await reader.read();
-      if (done) {
-        break;
-      }
-      // Decode chunk
+      if (done) break;
+
+      // Decode chunk and add to buffer
       buffer += decoder.decode(value, { stream: true });
+
       // Process SSE format - lines start with 'data:'
       const lines = buffer.split("\n");
       // Keep the last incomplete line in the buffer
       buffer = lines.pop() || "";
-      
+
       for (const line of lines) {
         if (line.startsWith("data:")) {
           try {
@@ -102,18 +115,33 @@ async function sendMessage() {
               chatMessages.scrollTop = chatMessages.scrollHeight;
             }
           } catch (e) {
-            console.error("Error parsing JSON:", e);
+            console.error("Error parsing JSON:", e, "Line:", line);
           }
         }
       }
     }
+
+    // Process any remaining data in buffer
+    if (buffer.startsWith("data:")) {
+      try {
+        const jsonData = JSON.parse(buffer.substring(5).trim());
+        if (jsonData.response) {
+          responseText += jsonData.response;
+          assistantMessageEl.querySelector("p").textContent = responseText;
+          chatMessages.scrollTop = chatMessages.scrollHeight;
+        }
+      } catch (e) {
+        console.error("Error parsing final buffer:", e);
+      }
+    }
+
     // Add completed response to chat history
     chatHistory.push({ role: "assistant", content: responseText });
   } catch (error) {
     console.error("Error:", error);
     addMessageToChat(
       "assistant",
-      "Sorry, there was an error processing your request.",
+      "Sorry, there was an error processing your request."
     );
   } finally {
     // Hide typing indicator
@@ -125,6 +153,7 @@ async function sendMessage() {
     userInput.focus();
   }
 }
+
 /**
  * Helper function to add message to chat
  */
@@ -136,3 +165,13 @@ function addMessageToChat(role, content) {
   // Scroll to bottom
   chatMessages.scrollTop = chatMessages.scrollHeight;
 }
+
+// Initialize chat on page load
+window.addEventListener("DOMContentLoaded", () => {
+  // Display initial assistant message
+  if (chatHistory.length > 0) {
+    chatHistory.forEach((msg) => {
+      addMessageToChat(msg.role, msg.content);
+    });
+  }
+});
