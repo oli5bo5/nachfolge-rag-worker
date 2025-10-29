@@ -48,7 +48,7 @@ async function handleChatRequest(
 ): Promise<Response> {
   try {
     const body = await request.json();
-    const { messages }: { messages: ChatMessage[] } = body;
+    const { messages }: { messages: any[] } = body;
     
     if (!messages || !Array.isArray(messages)) {
       return new Response(
@@ -65,8 +65,8 @@ async function handleChatRequest(
 
     console.log("📥 Eingehende Anfrage:", { messageCount: messages.length });
 
-    // Finde die letzte Benutzernachricht
-    const userMessages = messages.filter(m => m.sender === "user");
+    // Finde die letzte Benutzernachricht - Frontend sendet 'role' statt 'sender'
+    const userMessages = messages.filter(m => m.role === "user");
     const questionIndex = userMessages.length;
     const currentQuestion = QUESTIONS[questionIndex];
 
@@ -80,13 +80,13 @@ async function handleChatRequest(
       );
     }
 
-    // Baue das messages-Array für die AI - mit Validierung
+    // Baue das messages-Array für die AI - Frontend sendet bereits das richtige Format
     const aiMessages = [
       { role: "system", content: SYSTEM_PROMPT },
       ...messages
-        .filter((msg) => msg.content && msg.content.trim().length > 0) // Filtere leere Nachrichten
+        .filter((msg) => msg.content && msg.content.trim().length > 0 && msg.role) // Filtere leere/ungültige Nachrichten
         .map((msg) => ({
-          role: msg.sender === "bot" ? "assistant" : "user",
+          role: msg.role, // Frontend sendet bereits 'user' oder 'assistant'
           content: msg.content.trim(),
         })),
       {
