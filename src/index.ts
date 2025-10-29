@@ -80,20 +80,22 @@ async function handleChatRequest(
       );
     }
 
-    // Baue das messages-Array für die AI
+    // Baue das messages-Array für die AI - mit Validierung
     const aiMessages = [
       { role: "system", content: SYSTEM_PROMPT },
-      ...messages.map((msg) => ({
-        role: msg.sender === "bot" ? "assistant" : "user",
-        content: msg.content,
-      })),
+      ...messages
+        .filter((msg) => msg.content && msg.content.trim().length > 0) // Filtere leere Nachrichten
+        .map((msg) => ({
+          role: msg.sender === "bot" ? "assistant" : "user",
+          content: msg.content.trim(),
+        })),
       {
         role: "system",
         content: `Die nächste Frage lautet: "${currentQuestion}". Gehe kurz und persönlich auf die Antwort des Nutzers ein und stelle dann die nächste Frage. Vermeide jede Form von Selbstvorstellung oder Wiederholung deiner Erfahrung.`,
       },
     ];
 
-    console.log("🤖 AI Messages:", aiMessages);
+    console.log("🤖 AI Messages:", JSON.stringify(aiMessages, null, 2));
 
     // Deaktiviere Streaming für bessere Kompatibilität
     const response = await env.AI.run(MODEL_ID, {
